@@ -1,0 +1,20 @@
+{
+  "api_base_url": "http://127.0.0.1:8765/api/v1",
+  "device_id": "my-pc",
+  "device_name": "My PC",
+  "device_token": "change-me",
+  "poll_interval_ms": 1000,
+  "report_window_title": false,
+  "app_name_blacklist": [],
+  "history_limit": 50,
+  "privacy_pause": false,
+  "display_name_map": {
+    "Code.exe": "Visual Studio Code",
+    "chrome.exe": "Google Chrome",
+    "firefox.exe": "Mozilla Firefox",
+    "msedge.exe": "Microsoft Edge",
+    "explorer.exe": "File Explorer",
+    "WindowsTerminal.exe": "Windows Terminal",
+    "ApplicationFrameHost.exe": "UWP App"
+  }
+}
