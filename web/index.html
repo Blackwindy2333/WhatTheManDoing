@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>What The Man Doing — 在干什么</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="toolbar" role="banner">
+        <div class="toolbar-inner">
+          <div class="brand">
+            <span class="brand-mark" aria-hidden="true"></span>
+            <div>
+              <h1 class="brand-title">在干什么</h1>
+              <p class="brand-sub">What The Man Doing · 只读监控</p>
+            </div>
+          </div>
+          <div class="status-pill" id="conn-pill" data-state="connecting">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="conn-label">连接中…</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="content" id="content">
+        <section class="hero" id="hero" hidden>
+          <p class="hero-kicker">当前设备</p>
+          <h2 class="hero-app" id="hero-app">—</h2>
+          <p class="hero-meta" id="hero-meta"></p>
+        </section>
+
+        <section class="section" aria-labelledby="devices-heading">
+          <div class="section-head">
+            <h2 id="devices-heading">设备</h2>
+            <span class="muted" id="device-count"></span>
+          </div>
+          <div class="device-grid" id="device-grid" aria-live="polite"></div>
+          <p class="empty" id="devices-empty" hidden>暂无设备上报。请先在电脑上启动 Agent。</p>
+        </section>
+
+        <section class="section" aria-labelledby="history-heading">
+          <div class="section-head">
+            <h2 id="history-heading">最近切换</h2>
+            <span class="muted" id="history-device-label"></span>
+          </div>
+          <ol class="timeline" id="timeline"></ol>
+          <p class="empty" id="history-empty" hidden>选择一台设备后显示时间线。</p>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <p>只读展示 · 不可修改任何隐私配置 · 数据来自监控端上报</p>
+      </footer>
+    </div>
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
