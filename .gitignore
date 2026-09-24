@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Runtime data (databases) — 配置文件有意不忽略
+*.db
+*.sqlite
+*.sqlite3
+server/data/
+
+# Secrets / key material only（config.json 必须入库）
+*.pem
+*.key
+*.p12
+*.pfx
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Note: config.json / config.example.json 等配置文件
+# 有意不在本文件中忽略，以便持久化设置随仓库保存。
