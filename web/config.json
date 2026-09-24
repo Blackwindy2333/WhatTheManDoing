@@ -1,0 +1,7 @@
+{
+  "apiBaseUrl": "http://127.0.0.1:8765/api/v1",
+  "viewerToken": "",
+  "refreshMode": "poll",
+  "pollIntervalMs": 3000,
+  "showWindowTitle": false
+}
