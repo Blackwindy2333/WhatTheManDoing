@@ -16,7 +16,8 @@ from agent.config import (
     validate_config_dict,
 )
 from agent.gui import widgets
-from agent.gui.theme import FONT_BODY, FONT_TITLE, system_theme
+from agent.gui.dpi import apply_tk_scaling, configure_default_fonts, setup_dpi_awareness
+from agent.gui.theme import FONT_BODY, FONT_HINT, FONT_TITLE, px, set_ui_scale, system_theme
 from agent.service import AgentService
 
 
@@ -30,10 +31,14 @@ class ControlPanel:
         self.config = ensure_config(self.config_path)
         self.service = AgentService(self.config)
 
+        scale = apply_tk_scaling(root)
+        set_ui_scale(scale)
+        configure_default_fonts(family="Segoe UI", base_size=10)
+
         root.title("在干什么 · 控制台")
         root.configure(bg=self.theme.bg)
-        root.minsize(520, 640)
-        root.geometry("560x760")
+        root.minsize(px(520), px(640))
+        root.geometry(f"{px(560)}x{px(760)}")
 
         self._build()
         self._load_form()
@@ -47,7 +52,7 @@ class ControlPanel:
     def _build(self) -> None:
         t = self.theme
 
-        header = tk.Frame(self.root, bg=t.bg_elevated, pady=12, padx=16)
+        header = tk.Frame(self.root, bg=t.bg_elevated, pady=px(12), padx=px(16))
         header.pack(fill="x", side="top")
         brand = tk.Label(
             header,
@@ -64,7 +69,7 @@ class ControlPanel:
             fg=t.secondary,
             font=FONT_BODY,
         )
-        sub.pack(side="left", padx=(10, 0))
+        sub.pack(side="left", padx=(px(10), 0))
         self.pill = widgets.Pill(header, t, "已停止")
         self.pill.pack(side="right")
         self.pill.set_state("已停止", t.secondary)
@@ -77,7 +82,7 @@ class ControlPanel:
         self.canvas.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
         self.canvas.pack(side="left", fill="both", expand=True)
-        body = tk.Frame(self.canvas, bg=t.bg, padx=16, pady=16)
+        body = tk.Frame(self.canvas, bg=t.bg, padx=px(16), pady=px(16))
         self._body = body
         self._body_window = self.canvas.create_window((0, 0), window=body, anchor="nw")
 
@@ -93,40 +98,40 @@ class ControlPanel:
         self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
 
         # Status card
-        widgets.SectionLabel(body, t, "实时状态").pack(fill="x", pady=(0, 6))
+        widgets.SectionLabel(body, t, "实时状态").pack(fill="x", pady=(0, px(6)))
         status_card = widgets.Card(body, t)
-        status_card.pack(fill="x", pady=(0, 16))
+        status_card.pack(fill="x", pady=(0, px(16)))
         self.app_label = widgets.DisplayLabel(status_card, t, "未运行", size=20)
         self.app_label.pack(fill="x")
         self.proc_label = widgets.CaptionLabel(status_card, t, "启动服务后显示当前前台应用")
-        self.proc_label.pack(fill="x", pady=(4, 10))
+        self.proc_label.pack(fill="x", pady=(px(4), px(10)))
         self.stats = widgets.StatusPulse(status_card, t)
         self.stats.pack(fill="x")
         self.err_label = widgets.CaptionLabel(status_card, t, "")
-        self.err_label.pack(fill="x", pady=(8, 0))
+        self.err_label.pack(fill="x", pady=(px(8), 0))
 
         # Connection card
-        widgets.SectionLabel(body, t, "设备与连接").pack(fill="x", pady=(0, 6))
+        widgets.SectionLabel(body, t, "设备与连接").pack(fill="x", pady=(0, px(6)))
         conn = widgets.Card(body, t)
-        conn.pack(fill="x", pady=(0, 16))
+        conn.pack(fill="x", pady=(0, px(16)))
         self.f_device_id = widgets.LabeledEntry(conn, t, "设备 ID")
-        self.f_device_id.pack(fill="x", pady=(0, 10))
+        self.f_device_id.pack(fill="x", pady=(0, px(10)))
         self.f_device_name = widgets.LabeledEntry(conn, t, "设备名称")
-        self.f_device_name.pack(fill="x", pady=(0, 10))
+        self.f_device_name.pack(fill="x", pady=(0, px(10)))
         self.f_api = widgets.LabeledEntry(conn, t, "后端 API 地址")
-        self.f_api.pack(fill="x", pady=(0, 10))
+        self.f_api.pack(fill="x", pady=(0, px(10)))
         self.f_token = widgets.LabeledEntry(conn, t, "设备 Token", show="•")
-        self.f_token.pack(fill="x", pady=(0, 10))
+        self.f_token.pack(fill="x", pady=(0, px(10)))
         self.f_interval = widgets.LabeledEntry(conn, t, "采样间隔（毫秒）", width=12)
         self.f_interval.pack(fill="x")
 
         # Privacy card
-        widgets.SectionLabel(body, t, "隐私").pack(fill="x", pady=(0, 6))
+        widgets.SectionLabel(body, t, "隐私").pack(fill="x", pady=(0, px(6)))
         priv = widgets.Card(body, t)
-        priv.pack(fill="x", pady=(0, 16))
+        priv.pack(fill="x", pady=(0, px(16)))
 
         row_title = tk.Frame(priv, bg=t.card)
-        row_title.pack(fill="x", pady=4)
+        row_title.pack(fill="x", pady=px(4))
         left = tk.Frame(row_title, bg=t.card)
         left.pack(side="left", fill="x", expand=True)
         tk.Label(left, text="上报窗口标题", bg=t.card, fg=t.ink, font=FONT_BODY, anchor="w").pack(fill="x")
@@ -135,14 +140,14 @@ class ControlPanel:
             text="关闭更安全。标题可能含文档名、聊天内容。",
             bg=t.card,
             fg=t.secondary,
-            font=("Segoe UI", 8),
+            font=FONT_HINT,
             anchor="w",
         ).pack(fill="x")
         self.t_title = widgets.Toggle(row_title, t, on=False)
         self.t_title.pack(side="right")
 
         row_pause = tk.Frame(priv, bg=t.card)
-        row_pause.pack(fill="x", pady=4)
+        row_pause.pack(fill="x", pady=px(4))
         left2 = tk.Frame(row_pause, bg=t.card)
         left2.pack(side="left", fill="x", expand=True)
         tk.Label(left2, text="隐私暂停", bg=t.card, fg=t.ink, font=FONT_BODY, anchor="w").pack(fill="x")
@@ -151,24 +156,24 @@ class ControlPanel:
             text="开启后网页只显示「已暂停」，不暴露应用。",
             bg=t.card,
             fg=t.secondary,
-            font=("Segoe UI", 8),
+            font=FONT_HINT,
             anchor="w",
         ).pack(fill="x")
         self.t_pause = widgets.Toggle(row_pause, t, on=False)
         self.t_pause.pack(side="right")
 
         self.f_blacklist = widgets.LabeledEntry(priv, t, "进程黑名单（逗号分隔）")
-        self.f_blacklist.pack(fill="x", pady=(10, 0))
+        self.f_blacklist.pack(fill="x", pady=(px(10), 0))
 
         # Actions
         actions = tk.Frame(body, bg=t.bg)
-        actions.pack(fill="x", pady=(4, 8))
+        actions.pack(fill="x", pady=(px(4), px(8)))
         self.btn_start = widgets.AppleButton(actions, t, "启动服务", command=self._start_service)
-        self.btn_start.pack(side="left", expand=True, fill="x", padx=(0, 8))
+        self.btn_start.pack(side="left", expand=True, fill="x", padx=(0, px(8)))
         self.btn_stop = widgets.AppleButton(
             actions, t, "停止", kind="secondary", command=self._stop_service
         )
-        self.btn_stop.pack(side="left", expand=True, fill="x", padx=(0, 8))
+        self.btn_stop.pack(side="left", expand=True, fill="x", padx=(0, px(8)))
         self.btn_save = widgets.AppleButton(
             actions, t, "保存设置", kind="secondary", command=self._save_form
         )
@@ -177,7 +182,7 @@ class ControlPanel:
 
         # Autostart
         auto = widgets.Card(body, t)
-        auto.pack(fill="x", pady=(12, 24))
+        auto.pack(fill="x", pady=(px(12), px(24)))
         auto_row = tk.Frame(auto, bg=t.card)
         auto_row.pack(fill="x")
         auto_left = tk.Frame(auto_row, bg=t.card)
@@ -188,7 +193,7 @@ class ControlPanel:
             text="登录 Windows 后自动打开本控制台",
             bg=t.card,
             fg=t.secondary,
-            font=("Segoe UI", 8),
+            font=FONT_HINT,
             anchor="w",
         )
         self.auto_caption.pack(fill="x")
@@ -200,9 +205,9 @@ class ControlPanel:
             text="只读网页不能修改这些设置 · 配置保存在 agent/config.json",
             bg=t.bg,
             fg=t.secondary,
-            font=("Segoe UI", 8),
+            font=FONT_HINT,
         )
-        self.footer.pack(fill="x", pady=(0, 8))
+        self.footer.pack(fill="x", pady=(0, px(8)))
 
     def _on_mousewheel(self, event: tk.Event) -> None:
         if event.delta:
@@ -347,6 +352,8 @@ class ControlPanel:
 
 
 def launch(config_path=None) -> int:
+    # MUST run before Tk() or Windows bitmap-stretches the UI (blurry text).
+    setup_dpi_awareness()
     root = tk.Tk()
     ControlPanel(root, config_path=config_path)
     root.mainloop()
