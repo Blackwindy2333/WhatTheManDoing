@@ -24,6 +24,7 @@ class ServerConfig:
     offline_after_seconds: int = 30
     history_limit: int = 50
     cors_origins: list[str] = field(default_factory=lambda: ["*"])
+    rate_limit_per_minute: int = 120
 
 
 def default_config() -> ServerConfig:
@@ -57,6 +58,12 @@ def validate_config_dict(data: dict[str, Any]) -> ServerConfig:
     if history_limit < 1 or history_limit > 1000:
         raise ConfigError("history_limit must be between 1 and 1000")
 
+    rate_limit_per_minute = data.get("rate_limit_per_minute", 120)
+    if isinstance(rate_limit_per_minute, bool) or not isinstance(rate_limit_per_minute, int):
+        raise ConfigError("rate_limit_per_minute must be int")
+    if rate_limit_per_minute < 1 or rate_limit_per_minute > 100000:
+        raise ConfigError("rate_limit_per_minute must be between 1 and 100000")
+
     agent_tokens = data.get("agent_tokens", {})
     if not isinstance(agent_tokens, dict) or not all(
         isinstance(k, str) and isinstance(v, str) for k, v in agent_tokens.items()
@@ -76,6 +83,7 @@ def validate_config_dict(data: dict[str, Any]) -> ServerConfig:
         offline_after_seconds=offline_after_seconds,
         history_limit=history_limit,
         cors_origins=list(cors_origins),
+        rate_limit_per_minute=rate_limit_per_minute,
     )
 
 
