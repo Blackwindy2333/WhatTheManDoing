@@ -131,7 +131,7 @@ class ControlPanel:
         self.f_device_name.pack(fill="x", pady=(0, px(10)))
         self.f_api = widgets.LabeledEntry(conn, t, "后端 API 地址")
         self.f_api.pack(fill="x", pady=(0, px(10)))
-        self.f_token = widgets.LabeledEntry(conn, t, "设备 Token", show="•")
+        self.f_token = widgets.LabeledEntry(conn, t, "设备 Token")
         self.f_token.pack(fill="x", pady=(0, px(10)))
         self.f_interval = widgets.LabeledEntry(conn, t, "采样间隔（毫秒）", width=12)
         self.f_interval.pack(fill="x", pady=(0, px(10)))
