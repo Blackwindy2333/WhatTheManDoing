@@ -54,12 +54,39 @@ async function loadConfig() {
 async function fetchJson(path) {
   const url = state.config.apiBaseUrl.replace(/\/$/, "") + path;
   const res = await fetch(url, { headers: authHeaders() });
+  let body = null;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+
+  // Standard envelope: { code, message, data }
+  if (body && typeof body === "object" && "code" in body) {
+    if (body.code === 0) {
+      return body.data;
+    }
+    if (res.status === 401 || body.code === 40100) {
+      setConn("error", "Token 无效");
+      throw new Error(body.message || "unauthorized");
+    }
+    if (res.status === 429 || body.code === 42900) {
+      setConn("degraded", "触发限流");
+      throw new Error(body.message || "rate limited");
+    }
+    throw new Error(body.message || `code ${body.code}`);
+  }
+
   if (res.status === 401) {
     setConn("error", "Token 无效");
     throw new Error("unauthorized");
   }
+  if (res.status === 429) {
+    setConn("degraded", "触发限流");
+    throw new Error("rate limited");
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  return body;
 }
 
 function formatTime(iso) {
