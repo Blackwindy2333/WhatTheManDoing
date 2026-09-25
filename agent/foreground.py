@@ -34,11 +34,26 @@ def resolve_display_name(process_name: str, name_map: dict[str, str] | None = No
 
 
 def is_blacklisted(process_name: str, blacklist: list[str] | None = None) -> bool:
-    """Return True when process_name matches the local privacy blacklist."""
+    """Return True when process_name matches the local privacy blacklist.
+
+    Matches full names and with/without `.exe` (e.g. `Code.exe` ≡ `Code`).
+    """
     if not process_name or not blacklist:
         return False
-    target = process_name.lower()
-    return any(target == item.lower() or target == item.lower() + ".exe" for item in blacklist)
+
+    def stem(name: str) -> str:
+        lowered = name.lower().strip()
+        return lowered[:-4] if lowered.endswith(".exe") else lowered
+
+    target = process_name.lower().strip()
+    target_stem = stem(process_name)
+    for item in blacklist:
+        if not item or not str(item).strip():
+            continue
+        item_l = str(item).lower().strip()
+        if target == item_l or target_stem == stem(item_l):
+            return True
+    return False
 
 
 def get_foreground_info() -> ForegroundInfo:
