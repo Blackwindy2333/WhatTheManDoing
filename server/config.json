@@ -10,5 +10,6 @@
   "history_limit": 50,
   "cors_origins": [
     "*"
-  ]
+  ],
+  "rate_limit_per_minute": 120
 }
