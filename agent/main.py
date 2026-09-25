@@ -8,13 +8,15 @@ during the development test phase — use pytest instead.
 from __future__ import annotations
 
 import argparse
-import sys
 import time
 from pathlib import Path
 
 from agent.config import DEFAULT_CONFIG_PATH, AgentConfig, ensure_config
 from agent.foreground import ForegroundError, ForegroundInfo, get_foreground_info
 from agent.reporter import build_payload, send_report
+from logconfig import get_logger, setup_logging
+
+log = get_logger("agent.main")
 
 
 def sample_once(config: AgentConfig, info: ForegroundInfo | None = None) -> dict:
@@ -33,11 +35,12 @@ def run_loop(config: AgentConfig, *, max_iterations: int | None = None) -> int:
     while max_iterations is None or iterations < max_iterations:
         try:
             payload = sample_once(config)
-        except ForegroundError:
+        except ForegroundError as exc:
+            log.warning("foreground unavailable: %s", exc)
             payload = build_payload(config, None, status="idle")
-        ok = send_report(config, payload)
-        if not ok:
-            print("warn: report failed, will retry", file=sys.stderr)
+        result = send_report(config, payload)
+        if not result.ok:
+            log.warning("report failed: %s", result.error)
         iterations += 1
         if max_iterations is not None and iterations >= max_iterations:
             break
@@ -63,14 +66,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    setup_logging(app_name="agent")
     config = ensure_config(args.config)
+    log.info("agent main starting config=%s device_id=%s", args.config, config.device_id)
     if args.once:
         try:
             payload = sample_once(config)
-        except ForegroundError:
+        except ForegroundError as exc:
+            log.warning("foreground unavailable: %s", exc)
             payload = build_payload(config, None, status="idle")
-        send_report(config, payload)
-        return 0
+        result = send_report(config, payload)
+        if not result.ok:
+            log.error("single report failed: %s", result.error)
+        return 0 if result.ok else 1
     return run_loop(config)
 
 
