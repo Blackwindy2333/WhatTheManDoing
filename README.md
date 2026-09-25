@@ -216,6 +216,7 @@ Win32 真实调用与 GUI 主循环不在单元测试中启动，仅测纯逻辑
 | 想临时不分享 | GUI 打开「隐私暂停」，或配置 `privacy_pause: true` |
 | 开机启动未生效 | 确认注册表 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 中 `WhatTheManDoingAgent`；或重新打开 GUI 中的开关 |
 | GUI 字体/配色异常 | 跟随系统浅色/深色（`AppsUseLightTheme`）；高对比度下组件会自动偏实心 |
+| GUI 高分屏字体模糊 | 已内置 Per-Monitor DPI 感知（`agent/gui/dpi.py`）；请用 `python -m agent.gui` 启动。若仍模糊，确认系统缩放与显卡缩放一致，不要用兼容模式运行 |
 
 ## 许可
 
