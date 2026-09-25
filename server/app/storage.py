@@ -18,7 +18,10 @@ def parse_ts(value: str) -> datetime:
     text = value.strip()
     if text.endswith("Z"):
         text = text[:-1] + "+00:00"
-    return datetime.fromisoformat(text).astimezone(timezone.utc)
+    dt = datetime.fromisoformat(text)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 @dataclass
@@ -105,8 +108,11 @@ class Storage:
             )
             conn.commit()
 
-    def record_report(self, payload: dict[str, Any]) -> DeviceState:
-        """Accept an agent report payload and update latest + history."""
+    def record_report(self, payload: dict[str, Any], *, keep_history: int | None = None) -> DeviceState:
+        """Accept an agent report payload and update latest + history.
+
+        keep_history: if set, trim history to this many rows per device after insert.
+        """
         device_id = str(payload["device_id"])
         device_name = str(payload.get("device_name") or device_id)
         status = str(payload.get("status") or "active")
@@ -141,6 +147,8 @@ class Storage:
             )
             conn.commit()
             self._latest[device_id] = state
+        if keep_history is not None:
+            self.trim_history(keep_history)
         return state
 
     def list_devices(self) -> list[DeviceState]:
