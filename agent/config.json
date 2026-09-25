@@ -2,7 +2,7 @@
   "api_base_url": "http://127.0.0.1:8765/api/v1",
   "device_id": "my-pc",
   "device_name": "My PC",
-  "device_token": "change-me",
+  "device_token": "114514",
   "poll_interval_ms": 1000,
   "report_window_title": false,
   "app_name_blacklist": [],
