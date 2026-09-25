@@ -223,6 +223,23 @@ Viewer **没有**任何修改配置或控制设备的接口。
 3. 后端用 systemd / nssm / 容器常驻：`python -m server.app.main`  
 4. 反代示例（Nginx）：把 `/api/` 转到 `127.0.0.1:8765`，静态托管 `web/`。
 
+## 日志
+
+应用使用统一模块 `logconfig.py`，日志目录 **`logs/`**（滚动：2MB × 5 份）：
+
+| 文件 | 来源 |
+|------|------|
+| `logs/gui.log` | 本地控制台 |
+| `logs/agent.log` | 命令行 Agent |
+| `logs/server.log` | API 服务 |
+
+内容包括：启动/停止、设置保存、上报成功/失败**具体原因**（连接拒绝、401 Token、429 限流、超时等）。  
+GUI 页脚会显示当前日志文件路径。
+
+**关于「最近错误：report failed」**  
+常见原因是**尚未启动 API 服务**（`python -m server.app.main`），Agent 无法 POST 到 `api_base_url`。  
+现在会显示可操作的错误文案（如「无法连接服务端…请确认已启动 API 服务」），并写入日志。
+
 ## 测试
 
 ```bash
@@ -249,6 +266,9 @@ Win32 真实调用与 GUI 主循环不在单元测试中启动，仅测纯逻辑
 | 开机启动未生效 | 确认注册表 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 中 `WhatTheManDoingAgent`；或重新打开 GUI 中的开关 |
 | GUI 字体/配色异常 | 跟随系统浅色/深色（`AppsUseLightTheme`）；高对比度下组件会自动偏实心 |
 | GUI 高分屏字体模糊 | 已内置 Per-Monitor DPI 感知（`agent/gui/dpi.py`）；请用 `python -m agent.gui` 启动。若仍模糊，确认系统缩放与显卡缩放一致，不要用兼容模式运行 |
+| **最近错误：无法连接服务端 / report failed** | **未先启动 API 服务**。请运行 `python -m server.app.main` 后再启动监控。也请核对 `api_base_url`。详细原因见 `logs/gui.log` / `logs/agent.log` |
+| **最近错误：鉴权失败 (401)** | Agent 的 `device_token` 与 `server/config.json` 中 `agent_tokens[device_id]` 不一致 |
+| 日志在哪 | 项目根目录 `logs/`：`gui.log`、`agent.log`、`server.log`（滚动 2MB×5） |
 | 关闭后仍在后台 | 点了「最小化到托盘」。托盘右键 → 退出，或托盘打开主页面后再选直接退出 |
 | 找不到托盘图标 | 看任务栏溢出区（`^`）；确认系统托盘未隐藏该图标 |
 
