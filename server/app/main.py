@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 
 from agent.config import AgentConfig
+from logconfig import get_logger, setup_logging
 from server.app.auth import check_agent_token, check_viewer_token
 from server.app.config import DEFAULT_CONFIG_PATH, ServerConfig, ensure_config
 from server.app.envelope import (
@@ -29,6 +30,8 @@ from server.app.envelope import (
 from server.app.ratelimit import GlobalRateLimiter
 from server.app.status import sample_local_status
 from server.app.storage import Storage
+
+log = get_logger("server")
 
 
 def _ok(data: Any = None, message: str = "ok") -> JSONResponse:
@@ -101,6 +104,7 @@ def create_app(
     async def rate_limit_middleware(request: Request, call_next):
         result = rate.check()
         if not result.allowed:
+            log.warning("rate limit exceeded path=%s limit=%s", request.url.path, result.limit)
             body = error(CODE_RATE_LIMITED, "rate limit exceeded, try again later")
             return Response(
                 content=json.dumps(body),
@@ -167,10 +171,12 @@ def create_app(
         try:
             check_agent_token(cfg, device_id, authorization)
         except HTTPException as exc:
+            log.warning("report unauthorized device_id=%s", device_id)
             return _fail(401, CODE_UNAUTHORIZED, str(exc.detail))
         try:
             state = store.record_report(payload)
         except (KeyError, ValueError) as exc:
+            log.warning("report invalid payload: %s", exc)
             return _fail(400, CODE_BAD_REQUEST, str(exc))
 
         public = store.device_public(
@@ -179,6 +185,7 @@ def create_app(
             offline_after_seconds=cfg.offline_after_seconds,
         )
         await _broadcast(app, public)
+        log.debug("report stored device_id=%s status=%s", device_id, state.status)
         return _ok({"ok": True})
 
     @app.get("/api/v1/devices", dependencies=[Depends(require_viewer)])
@@ -256,7 +263,15 @@ async def _broadcast(app: FastAPI, message: dict[str, Any]) -> None:
 def main(argv: list[str] | None = None) -> int:
     import uvicorn
 
+    log_file = setup_logging(app_name="server")
     cfg = ensure_config(DEFAULT_CONFIG_PATH)
+    log.info(
+        "API server starting host=%s port=%s rate_limit=%s log=%s",
+        cfg.host,
+        cfg.port,
+        cfg.rate_limit_per_minute,
+        log_file,
+    )
     uvicorn.run(
         create_app(cfg),
         host=cfg.host,
