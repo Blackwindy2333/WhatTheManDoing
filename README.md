@@ -1,12 +1,17 @@
 # WhatTheManDoing · 在干什么
 
-监控本机（Windows）**当前前台应用**，并提供一个**只读网页**，让其他人看到「他现在在干什么」。  
-前后端分离：网页可部署到任意静态服务器，通过 `web/config.json` 连接后端。  
-**网页只能查看，不能修改任何涉及隐私的配置。**
+**服务端**项目：在本机监控前台应用，并通过**标准化 JSON API** 供客户端查询。  
+本地 GUI 控制台属于服务端管理界面（配置 / 启停 / 托盘保活 / 限流）。  
+**客户端**（网页、桌面、移动端、脚本）只消费 API，详见 **[docs/API.md](docs/API.md)**。
 
 ```text
-Windows Agent（含本地 GUI 控制台）──上报──► Backend (FastAPI) ◄──只读── Web Viewer（可独立部署）
-Android（仅可行性报告，见 docs/android-feasibility.md）
+┌──────────────── 服务端（本仓库） ────────────────┐
+│  GUI 控制台 · 监控采集 · JSON API · 全局 RPM 限流  │
+└──────────────────────┬───────────────────────────┘
+                       │ HTTPS / HTTP + JSON
+          ┌────────────┼────────────┐
+          ▼            ▼            ▼
+       网页客户端    移动端       脚本 / 其它 Agent
 ```
 
 ## 功能一览
@@ -14,28 +19,48 @@ Android（仅可行性报告，见 docs/android-feasibility.md）
 | 能力 | 说明 |
 |------|------|
 | 前台应用监控 | 进程名 + 友好显示名；窗口标题**默认关闭** |
-| 本地控制台 GUI | Apple 风界面：配置、启停服务、实时状态、开机自启 |
-| 多设备列表 | 网页展示多台设备的在线状态与当前应用 |
+| 标准化 JSON API | 统一 envelope `{code,message,data}`，见 `docs/API.md` |
+| 本机状态查询 | `GET /api/v1/status` 返回当前前台应用 |
+| 全局限流 | 每分钟最大请求数，**GUI 可改**（默认 120） |
+| 本地控制台 GUI | 配置、启停服务、实时状态、开机自启、托盘保活 |
+| 多设备列表 | `GET /api/v1/devices` 等（可选上报） |
 | 在线/离线 | 超过 `offline_after_seconds` 未上报视为离线 |
-| 最近切换 | 每设备保留最近历史（可配置上限） |
-| 隐私暂停 | Agent 本地 `privacy_pause`，网页只显示「已暂停」 |
-| 进程黑名单 | 本地不上报指定进程，显示为 Redacted |
-| 可选只读 Token | 后端 `viewer_token` 非空时，网页需带 Token |
-| 配置持久化 | 启动检测配置，缺失则以默认设置创建并写回 |
-| 开机自动启动 | 写入 HKCU Run，登录后打开本地控制台 |
-| 后台保活 / 托盘 | 关闭时可选最小化到系统托盘；托盘菜单：打开主页面 / 重启服务 / 退出 |
+| 最近切换 | `GET /api/v1/status/history` |
+| 隐私暂停 / 黑名单 | 本地脱敏后才进入 API |
+| 可选只读 Token | `viewer_token` 非空时查询需 Bearer |
+| 配置持久化 | 缺失则默认创建；配置 JSON 入库 |
+| 开机自动启动 | HKCU Run，登录后打开控制台 |
 
 ## 目录结构
 
 ```text
-agent/          Windows 监控客户端 + 本地控制台 GUI（纯标准库）
-  gui/          Apple 风控制面板（配置 / 启停 / 状态 / 自启）
-server/         FastAPI 后端 + SQLite
-web/            只读查看页（静态，可独立部署）
-docs/           安卓端可行性报告等
-tests/          见 agent/tests、server/tests（pytest）
-PLAN.md         可行性研究与实施计划
+agent/          监控采集 + 本地控制台 GUI（服务端组成）
+  gui/          Apple 风控制面板（配置 / 启停 / 托盘 / 限流）
+server/         JSON API 服务（envelope + 全局 RPM + SQLite）
+web/            示例客户端（只读查看页，非服务端核心）
+docs/API.md     客户端 API 详档 ★
+docs/android-feasibility.md
+PLAN.md
 ```
+
+## API 标准（摘要）
+
+完整约定见 **[docs/API.md](docs/API.md)**。要点：
+
+1. **统一 envelope**：`{"code":0,"message":"ok","data":...}`，错误同样结构  
+2. **`code`**：`0` 成功；`4xxxx` 客户端错误；`5xxxx` 服务端错误  
+3. **限流**：全局 RPM，响应头 `X-RateLimit-*`，拒绝时 HTTP 429 + `code=42900`  
+4. **本机状态**：`GET /api/v1/status`  
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/health` | 健康与限流额度 |
+| GET | `/api/v1/status` | **本机当前前台应用** |
+| GET | `/api/v1/status/history` | 最近切换 |
+| POST | `/api/v1/report` | 设备上报（可选） |
+| GET | `/api/v1/devices` | 设备列表（可选） |
+| GET | `/api/v1/devices/{id}` | 单设备 |
+| GET | `/api/v1/devices/{id}/history` | 设备历史 |
 
 ## 环境要求
 
@@ -74,7 +99,7 @@ python -m agent.gui
 |------|------|
 | 顶部状态胶囊 | 已停止 / 运行中 / 已暂停 / 设置已保存 |
 | 实时状态卡片 | 当前前台应用、进程名、成功/失败计数、最近错误 |
-| 设备与连接 | `device_id`、名称、API 地址、Token、采样间隔 |
+| 设备与连接 | `device_id`、名称、API 地址、Token、采样间隔、**API 限流（次/分钟）** |
 | 隐私 | 窗口标题开关、隐私暂停、进程黑名单 |
 | 底部按钮 | **启动服务** / **停止** / **保存设置** |
 | 开机自动启动 | 写入 `HKCU\...\Run`，登录后自动打开控制台 |
@@ -137,6 +162,7 @@ python -m http.server 8080 --directory web
 | `offline_after_seconds` | `30` | 超时判离线 |
 | `history_limit` | `50` | 查询历史上限相关 |
 | `cors_origins` | `["*"]` | 网页跨域来源 |
+| `rate_limit_per_minute` | `120` | **全局**每分钟最大请求数（GUI 可改） |
 
 ### `web/config.json`（部署到服务器时主要改这里）
 
@@ -148,7 +174,10 @@ python -m http.server 8080 --directory web
 | `pollIntervalMs` | `3000` | 轮询间隔 |
 | `showWindowTitle` | `false` | 展示层是否显示标题（后端默认已剥离标题） |
 
-## API（只读）
+## API 文档
+
+请阅读 **[docs/API.md](docs/API.md)**（鉴权、端点、字段、限流、错误码、curl / JS / Python 示例）。  
+以下为历史端点索引（均返回 envelope）：
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |------|------|------|------|
