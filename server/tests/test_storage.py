@@ -68,6 +68,18 @@ def test_trim_history(tmp_path: Path) -> None:
     assert len(store.history("my-pc", limit=50)) == 3
 
 
+def test_record_report_auto_trims_history(tmp_path: Path) -> None:
+    store = Storage(tmp_path / "m.db")
+    for i in range(10):
+        store.record_report(_payload(ts=f"2026-01-01T00:00:{i:02d}Z"), keep_history=3)
+    assert len(store.history("my-pc", limit=50)) == 3
+
+
+def test_parse_ts_naive_assumed_utc() -> None:
+    dt = parse_ts("2026-01-01T12:00:00")
+    assert dt == datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+
+
 def test_parse_ts_z_suffix() -> None:
     dt = parse_ts("2026-01-01T00:00:00Z")
     assert dt == datetime(2026, 1, 1, tzinfo=timezone.utc)

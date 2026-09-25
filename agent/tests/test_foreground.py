@@ -34,9 +34,11 @@ def test_is_blacklisted_exact_and_exe_suffix() -> None:
     assert is_blacklisted("KeePass.exe", ["KeePass.exe"])
     assert is_blacklisted("KeePass.exe", ["KeePass"])
     assert is_blacklisted("keepass.exe", ["KeePass"])
+    assert is_blacklisted("KeePass", ["KeePass.exe"])
     assert not is_blacklisted("Code.exe", ["KeePass"])
     assert not is_blacklisted("Code.exe", [])
     assert not is_blacklisted("", ["x"])
+    assert not is_blacklisted("Code.exe", ["", "  "])
 
 
 def test_foreground_info_frozen() -> None:

@@ -100,3 +100,31 @@ def test_on_update_callback() -> None:
     svc.stop()
     assert seen[0] is True
     assert seen[-1] is False or seen[-1] is True  # stop notify
+
+
+def test_sample_error_still_reports_idle() -> None:
+    """Foreground failure must still POST an idle frame to the server."""
+    from agent.foreground import ForegroundError
+
+    cfg = default_config()
+    cfg.poll_interval_ms = 100
+    reported = []
+
+    def bad_sampler():
+        raise ForegroundError("no window")
+
+    svc = AgentService(
+        cfg,
+        sampler=bad_sampler,
+        reporter=lambda c, p: reported.append(p) or True,
+    )
+    svc.start()
+    deadline = time.time() + 2.0
+    while time.time() < deadline and not reported:
+        time.sleep(0.02)
+    svc.stop()
+    assert reported
+    assert reported[0]["status"] == "idle"
+    assert reported[0]["app"] is None
+    # sample error is visible, not swallowed
+    assert "no window" in (svc.snapshot()["last_error"] or "")
