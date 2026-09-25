@@ -129,3 +129,31 @@ def scaled_font(family: str, size: int | float, *styles: str, scale: float = 1.0
     if styles:
         return (family, size_pt, " ".join(styles))
     return (family, size_pt)
+
+
+def configure_default_fonts(family: str = "Segoe UI", base_size: int = 10) -> None:
+    """Point named Tk fonts at a ClearType-friendly UI face instead of Helvetica."""
+    try:
+        from tkinter import font as tkfont
+
+        names = (
+            "TkDefaultFont",
+            "TkTextFont",
+            "TkMenuFont",
+            "TkHeadingFont",
+            "TkCaptionFont",
+            "TkSmallCaptionFont",
+            "TkIconFont",
+            "TkTooltipFont",
+        )
+        for name in names:
+            try:
+                tkfont.nametofont(name).configure(family=family, size=base_size)
+            except Exception:
+                pass
+        try:
+            tkfont.nametofont("TkFixedFont").configure(family="Consolas", size=max(9, base_size - 1))
+        except Exception:
+            pass
+    except Exception:
+        pass
