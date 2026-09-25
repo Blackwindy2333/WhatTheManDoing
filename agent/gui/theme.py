@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from agent.gui.dpi import scale_px
+
 
 @dataclass(frozen=True)
 class Theme:
@@ -66,7 +68,7 @@ DARK = Theme(
     shadow="#111111",
 )
 
-# Type scale (optical sizing: tighter tracking on display text)
+# Type scale — sizes are in **points** (Tk maps them via `tk scaling` after DPI awareness).
 FONT_FAMILY = "Segoe UI"
 FONT_DISPLAY = (FONT_FAMILY, 22, "bold")
 FONT_TITLE = (FONT_FAMILY, 13, "bold")
@@ -74,6 +76,7 @@ FONT_BODY = (FONT_FAMILY, 10)
 FONT_CAPTION = (FONT_FAMILY, 9)
 FONT_MONO = ("Consolas", 9)
 FONT_BUTTON = (FONT_FAMILY, 10, "bold")
+FONT_HINT = (FONT_FAMILY, 8)
 
 RADIUS = 12
 PAD = 16
@@ -81,6 +84,25 @@ CARD_PAD = 14
 # Critically-damped feel for micro transitions (ms)
 TICK_MS = 50
 MOTION_MS = 180
+
+# Runtime pixel scale (1.0 = 96 DPI). Set once before building widgets.
+_SCALE = 1.0
+
+
+def set_ui_scale(scale: float) -> float:
+    """Record display scale so pixel metrics stay physical-size consistent."""
+    global _SCALE
+    _SCALE = max(0.5, float(scale or 1.0))
+    return _SCALE
+
+
+def ui_scale() -> float:
+    return _SCALE
+
+
+def px(value: int | float) -> int:
+    """Scale a 96-DPI pixel value for the current display."""
+    return scale_px(value, _SCALE)
 
 
 def system_theme() -> Theme:
