@@ -70,6 +70,13 @@ def validate_config_dict(data: dict[str, Any]) -> AgentConfig:
     report_window_title = _require_type(data, "report_window_title", bool)
     privacy_pause = _require_type(data, "privacy_pause", bool)
 
+    api_base_url = _require_type(data, "api_base_url", str).strip()
+    if not api_base_url:
+        raise ConfigError("api_base_url must not be empty")
+    device_id = _require_type(data, "device_id", str).strip()
+    if not device_id:
+        raise ConfigError("device_id must not be empty")
+
     blacklist = data.get("app_name_blacklist", [])
     if not isinstance(blacklist, list) or not all(isinstance(x, str) for x in blacklist):
         raise ConfigError("app_name_blacklist must be a list of strings")
@@ -81,8 +88,8 @@ def validate_config_dict(data: dict[str, Any]) -> AgentConfig:
         raise ConfigError("display_name_map must be a string-to-string object")
 
     return AgentConfig(
-        api_base_url=_require_type(data, "api_base_url", str),
-        device_id=_require_type(data, "device_id", str),
+        api_base_url=api_base_url,
+        device_id=device_id,
         device_name=_require_type(data, "device_name", str),
         device_token=_require_type(data, "device_token", str),
         poll_interval_ms=poll_interval_ms,

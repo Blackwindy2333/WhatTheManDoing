@@ -78,6 +78,18 @@ def test_load_rejects_missing_keys(tmp_path: Path) -> None:
         load_config(path)
 
 
+def test_load_rejects_empty_device_id_and_api_url() -> None:
+    data = default_config().__dict__
+    data["device_id"] = "  "
+    with pytest.raises(ConfigError, match="device_id"):
+        validate_config_dict(data)
+
+    data = default_config().__dict__
+    data["api_base_url"] = ""
+    with pytest.raises(ConfigError, match="api_base_url"):
+        validate_config_dict(data)
+
+
 def test_validate_rejects_bool_for_int() -> None:
     data = default_config().__dict__
     data["poll_interval_ms"] = True

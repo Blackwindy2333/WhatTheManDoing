@@ -276,10 +276,12 @@ class TrayIcon:
 
         def wndproc(hwnd, msg, wparam, lparam):
             if msg == WM_TRAYICON:
-                if lparam in (WM_LBUTTONUP, WM_LBUTTONDBLCLK):
+                # Some Windows versions pack the mouse event in the low word.
+                mouse = int(lparam) & 0xFFFF
+                if mouse in (WM_LBUTTONUP, WM_LBUTTONDBLCLK):
                     if self.on_open:
                         self.on_open()
-                elif lparam == WM_RBUTTONUP:
+                elif mouse == WM_RBUTTONUP:
                     self._show_menu(hwnd)
                 return 0
             if msg == WM_DESTROY:
