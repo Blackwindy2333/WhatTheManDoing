@@ -13,7 +13,10 @@ from typing import Any, Callable
 
 from agent.config import AgentConfig
 from agent.foreground import ForegroundError, ForegroundInfo, get_foreground_info
-from agent.reporter import build_payload, send_report
+from agent.reporter import ReportResult, build_payload, send_report
+from logconfig import get_logger
+
+log = get_logger("service")
 
 
 def utc_now_iso() -> str:
@@ -57,7 +60,7 @@ class AgentService:
         *,
         on_update: Callable[[dict[str, Any]], None] | None = None,
         sampler: Callable[[], ForegroundInfo] | None = None,
-        reporter: Callable[[AgentConfig, dict[str, Any]], bool] | None = None,
+        reporter: Callable[[AgentConfig, dict[str, Any]], ReportResult | bool] | None = None,
     ) -> None:
         self._config = config
         self._on_update = on_update
@@ -116,30 +119,43 @@ class AgentService:
             pass
 
     def _run(self) -> None:
+        log.info("agent service started device_id=%s", self._config.device_id)
         while not self._stop.is_set():
             config = self._config
             interval = max(config.poll_interval_ms, 100) / 1000.0
             try:
                 payload = self._build_payload(config)
             except ForegroundError as exc:
+                log.warning("foreground sample failed: %s", exc)
                 payload = build_payload(config, None, status="idle")
                 self._note_fail(str(exc), payload)
             except Exception as exc:  # noqa: BLE001 — keep loop alive
+                log.exception("unexpected error while sampling foreground")
                 payload = build_payload(config, None, status="idle")
                 self._note_fail(str(exc), payload)
             else:
-                ok = False
                 try:
-                    ok = self._reporter(config, payload)
+                    result = self._reporter(config, payload)
                 except Exception as exc:  # noqa: BLE001
-                    self._note_fail(str(exc), payload)
-                if ok:
-                    self._note_ok(payload)
+                    log.exception("reporter raised")
+                    self._note_fail(f"report exception: {exc}", payload)
                 else:
-                    self._note_fail("report failed", payload)
+                    # Accept bool (legacy/test seam) or ReportResult
+                    if isinstance(result, ReportResult):
+                        ok, err = result.ok, result.error
+                    else:
+                        ok = bool(result)
+                        err = None if ok else "report failed"
+                    if ok:
+                        self._note_ok(payload)
+                    else:
+                        detail = err or "report failed"
+                        log.warning("report failed: %s", detail)
+                        self._note_fail(detail, payload)
 
             self._stop.wait(interval)
 
+        log.info("agent service stopped device_id=%s", self._config.device_id)
         with self._lock:
             self._stats.running = False
             self._stats.status = "stopped"
