@@ -6,7 +6,6 @@ Used by the local GUI (and unit tests) so status updates do not require parsing 
 from __future__ import annotations
 
 import threading
-import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable
@@ -123,35 +122,38 @@ class AgentService:
         while not self._stop.is_set():
             config = self._config
             interval = max(config.poll_interval_ms, 100) / 1000.0
+            sample_error: str | None = None
             try:
                 payload = self._build_payload(config)
             except ForegroundError as exc:
                 log.warning("foreground sample failed: %s", exc)
+                sample_error = str(exc)
                 payload = build_payload(config, None, status="idle")
-                self._note_fail(str(exc), payload)
             except Exception as exc:  # noqa: BLE001 — keep loop alive
                 log.exception("unexpected error while sampling foreground")
+                sample_error = f"采样失败: {exc}"
                 payload = build_payload(config, None, status="idle")
-                self._note_fail(str(exc), payload)
+
+            # Always report (including idle/paused frames) so the server stays fresh.
+            try:
+                result = self._reporter(config, payload)
+            except Exception as exc:  # noqa: BLE001
+                log.exception("reporter raised")
+                self._note_fail(f"report exception: {exc}", payload)
             else:
-                try:
-                    result = self._reporter(config, payload)
-                except Exception as exc:  # noqa: BLE001
-                    log.exception("reporter raised")
-                    self._note_fail(f"report exception: {exc}", payload)
+                if isinstance(result, ReportResult):
+                    ok, err = result.ok, result.error
                 else:
-                    # Accept bool (legacy/test seam) or ReportResult
-                    if isinstance(result, ReportResult):
-                        ok, err = result.ok, result.error
-                    else:
-                        ok = bool(result)
-                        err = None if ok else "report failed"
-                    if ok:
-                        self._note_ok(payload)
-                    else:
-                        detail = err or "report failed"
-                        log.warning("report failed: %s", detail)
-                        self._note_fail(detail, payload)
+                    ok = bool(result)
+                    err = None if ok else "report failed"
+                if ok and not sample_error:
+                    self._note_ok(payload)
+                elif ok and sample_error:
+                    self._note_fail(sample_error, payload)
+                else:
+                    detail = err or sample_error or "report failed"
+                    log.warning("report failed: %s", detail)
+                    self._note_fail(detail, payload)
 
             self._stop.wait(interval)
 
