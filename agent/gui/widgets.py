@@ -9,8 +9,10 @@ from agent.gui.theme import (
     FONT_BODY,
     FONT_BUTTON,
     FONT_CAPTION,
+    FONT_HINT,
     FONT_TITLE,
     Theme,
+    px,
 )
 
 
@@ -23,8 +25,8 @@ class Card(tk.Frame):
             bg=theme.card,
             highlightthickness=1,
             highlightbackground=theme.card_border,
-            padx=16,
-            pady=14,
+            padx=px(16),
+            pady=px(14),
             **kwargs,
         )
 
@@ -111,7 +113,7 @@ class LabeledEntry(tk.Frame):
             show=show or "",
             width=width,
         )
-        self.entry.pack(fill="x", pady=(4, 0), ipady=6)
+        self.entry.pack(fill="x", pady=(px(4), 0), ipady=px(6))
 
     def get(self) -> str:
         return self.var.get()
@@ -135,8 +137,8 @@ class Toggle(tk.Frame):
         self.theme = theme
         self._on = bool(on)
         self._command = command
-        self._width = 46
-        self._height = 28
+        self._width = px(46)
+        self._height = px(28)
         self.canvas = tk.Canvas(
             self,
             width=self._width,
@@ -152,30 +154,28 @@ class Toggle(tk.Frame):
     def _draw(self, on: bool) -> None:
         c = self.canvas
         t = self.theme
+        inset = px(2)
         c.delete("all")
         c.configure(bg=t.card)
-        if on:
-            track = t.green
-        else:
-            track = t.track
-        c.create_oval(2, 2, self._height - 2, self._height - 2, fill=track, outline=track)
+        track = t.green if on else t.track
+        c.create_oval(inset, inset, self._height - inset, self._height - inset, fill=track, outline=track)
         c.create_oval(
-            self._width - self._height + 2,
-            2,
-            self._width - 2,
-            self._height - 2,
+            self._width - self._height + inset,
+            inset,
+            self._width - inset,
+            self._height - inset,
             fill=track,
             outline=track,
         )
         c.create_rectangle(
             self._height / 2,
-            2,
+            inset,
             self._width - self._height / 2,
-            self._height - 2,
+            self._height - inset,
             fill=track,
             outline=track,
         )
-        pad = 3
+        pad = px(3)
         if on:
             x0 = self._width - self._height + pad
         else:
@@ -204,10 +204,11 @@ class Pill(tk.Frame):
     """Small status capsule (online / running / error)."""
 
     def __init__(self, master: tk.Misc, theme: Theme, text: str = "") -> None:
-        super().__init__(master, bg=theme.bg_elevated, padx=10, pady=6)
+        super().__init__(master, bg=theme.bg_elevated, padx=px(10), pady=px(6))
         self.theme = theme
-        self.dot = tk.Canvas(self, width=10, height=10, bg=theme.bg_elevated, highlightthickness=0)
-        self.dot.pack(side="left", padx=(0, 8))
+        dot = px(10)
+        self.dot = tk.Canvas(self, width=dot, height=dot, bg=theme.bg_elevated, highlightthickness=0)
+        self.dot.pack(side="left", padx=(0, px(8)))
         self.label = tk.Label(
             self,
             text=text,
@@ -216,11 +217,14 @@ class Pill(tk.Frame):
             font=FONT_BODY,
         )
         self.label.pack(side="left")
+        self._dot_size = dot
 
     def set_state(self, text: str, color: str) -> None:
         self.label.configure(text=text)
         self.dot.delete("all")
-        self.dot.create_oval(1, 1, 9, 9, fill=color, outline=color)
+        s = self._dot_size
+        inset = max(1, px(1))
+        self.dot.create_oval(inset, inset, s - inset, s - inset, fill=color, outline=color)
 
 
 class AppleButton(tk.Frame):
@@ -252,8 +256,8 @@ class AppleButton(tk.Frame):
             bg=self._bg,
             fg=self._fg,
             font=FONT_BUTTON,
-            padx=18,
-            pady=10,
+            padx=px(18),
+            pady=px(10),
             cursor="hand2",
         )
         self.label.pack(fill="x", expand=True)
@@ -294,7 +298,7 @@ class StatusPulse(tk.Frame):
         self.fail_label = CaptionLabel(self, theme, "失败 0")
         self.time_label = CaptionLabel(self, theme, "尚未上报")
         self.ok_label.pack(side="left")
-        self.fail_label.pack(side="left", padx=(12, 0))
+        self.fail_label.pack(side="left", padx=(px(12), 0))
         self.time_label.pack(side="right")
 
     def update_stats(self, ok: int, fail: int, last_at: str | None) -> None:
