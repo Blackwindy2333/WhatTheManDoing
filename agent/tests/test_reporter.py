@@ -71,7 +71,8 @@ def test_send_report_uses_http_post_seam() -> None:
         return 201
 
     payload = build_payload(cfg, _info(), status="active")
-    assert send_report(cfg, payload, http_post=fake_post) is True
+    res = send_report(cfg, payload, http_post=fake_post)
+    assert res.ok is True
     assert seen["headers"]["Authorization"] == f"Bearer {cfg.device_token}"
     assert seen["body"]["device_id"] == cfg.device_id
 
@@ -79,4 +80,6 @@ def test_send_report_uses_http_post_seam() -> None:
 def test_send_report_false_on_error_status() -> None:
     cfg = default_config()
     payload = build_payload(cfg, _info(), status="active")
-    assert send_report(cfg, payload, http_post=lambda *a: 500) is False
+    res = send_report(cfg, payload, http_post=lambda *a: 500)
+    assert res.ok is False
+    assert res.status_code == 500
