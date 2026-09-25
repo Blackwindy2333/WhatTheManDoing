@@ -142,18 +142,25 @@ def create_app(
         return _ok(data)
 
     @app.get("/api/v1/status/history")
-    def get_status_history(limit: int = Query(default=50, ge=1, le=1000)) -> JSONResponse:
-        device_id = (agent_cfg.device_id if agent_cfg else None) or "local"
-        if status_provider is not None:
+    def get_status_history(
+        limit: int = Query(default=50, ge=1, le=1000),
+        device_id: str | None = Query(default=None),
+    ) -> JSONResponse:
+        resolved = device_id
+        if not resolved and status_provider is not None:
             try:
-                snap = status_provider()
-                device_id = snap.get("device_id") or device_id
+                resolved = status_provider().get("device_id")
             except Exception:  # noqa: BLE001
-                pass
-        entries = store.history(device_id, limit=limit)
+                resolved = None
+        if not resolved and agent_cfg is not None:
+            resolved = agent_cfg.device_id
+        if not resolved:
+            devices = store.list_devices()
+            resolved = devices[0].device_id if devices else "local"
+        entries = store.history(resolved, limit=limit)
         return _ok(
             {
-                "device_id": device_id,
+                "device_id": resolved,
                 "history": [e.to_public_dict(show_window_title=False) for e in entries],
             }
         )
@@ -174,7 +181,7 @@ def create_app(
             log.warning("report unauthorized device_id=%s", device_id)
             return _fail(401, CODE_UNAUTHORIZED, str(exc.detail))
         try:
-            state = store.record_report(payload)
+            state = store.record_report(payload, keep_history=cfg.history_limit)
         except (KeyError, ValueError) as exc:
             log.warning("report invalid payload: %s", exc)
             return _fail(400, CODE_BAD_REQUEST, str(exc))
@@ -263,17 +270,22 @@ async def _broadcast(app: FastAPI, message: dict[str, Any]) -> None:
 def main(argv: list[str] | None = None) -> int:
     import uvicorn
 
+    from agent.config import ensure_config as ensure_agent_config
+
     log_file = setup_logging(app_name="server")
     cfg = ensure_config(DEFAULT_CONFIG_PATH)
+    # Load agent privacy settings so GET /status applies pause/blacklist/title rules.
+    agent_cfg = ensure_agent_config()
     log.info(
-        "API server starting host=%s port=%s rate_limit=%s log=%s",
+        "API server starting host=%s port=%s rate_limit=%s device_id=%s log=%s",
         cfg.host,
         cfg.port,
         cfg.rate_limit_per_minute,
+        agent_cfg.device_id,
         log_file,
     )
     uvicorn.run(
-        create_app(cfg),
+        create_app(cfg, agent_config=agent_cfg),
         host=cfg.host,
         port=cfg.port,
         log_level="info",
