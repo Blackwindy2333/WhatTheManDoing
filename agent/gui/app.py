@@ -16,6 +16,7 @@ from agent.config import (
     validate_config_dict,
 )
 from agent.gui import widgets
+from agent.gui.dialogs import KEEP_TRAY, QUIT, ask_close_action
 from agent.gui.dpi import apply_tk_scaling, configure_default_fonts, setup_dpi_awareness
 from agent.gui.theme import FONT_BODY, FONT_HINT, FONT_TITLE, px, set_ui_scale, system_theme
 from agent.service import AgentService
@@ -35,6 +36,10 @@ class ControlPanel:
         set_ui_scale(scale)
         configure_default_fonts(family="Segoe UI", base_size=10)
 
+        self.tray = None
+        self._in_tray = False
+        self._quitting = False
+
         root.title("在干什么 · 控制台")
         root.configure(bg=self.theme.bg)
         root.minsize(px(520), px(640))
@@ -43,6 +48,7 @@ class ControlPanel:
         self._build()
         self._load_form()
         self._refresh_autostart()
+        self._ensure_tray()
         self._tick()
 
         root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -343,12 +349,117 @@ class ControlPanel:
             self.t_autostart.set(False, fire=False)
             messagebox.showerror("开机启动", str(exc), parent=self.root)
 
-    def _on_close(self) -> None:
+    # ----- tray keep-alive -------------------------------------------------
+
+    def _ensure_tray(self) -> bool:
+        if self.tray is not None and self.tray.running:
+            return True
+        try:
+            from agent.gui.tray import TrayIcon
+        except Exception:
+            self.tray = None
+            return False
+
+        def on_open() -> None:
+            # Marshal from tray thread onto Tk main loop.
+            self.root.after(0, self._show_from_tray)
+
+        def on_restart() -> None:
+            self.root.after(0, self._restart_service_from_tray)
+
+        def on_quit() -> None:
+            self.root.after(0, self._quit_from_tray)
+
+        tray = TrayIcon(
+            tooltip="WhatTheManDoing · 在干什么",
+            on_open=on_open,
+            on_restart=on_restart,
+            on_quit=on_quit,
+        )
+        ok = tray.start()
+        self.tray = tray if ok else None
+        return ok
+
+    def _show_from_tray(self) -> None:
+        self._in_tray = False
+        try:
+            self.root.after(0, self.root.deiconify)
+            self.root.after(20, self.root.lift)
+            self.root.after(40, self.root.focus_force)
+        except Exception:
+            pass
+
+    def _restart_service_from_tray(self) -> None:
         try:
             self.service.stop()
         except Exception:
             pass
-        self.root.destroy()
+        if not self.service.is_running():
+            self._start_service()
+        try:
+            if self.tray:
+                self.tray.notify("在干什么", "监控服务已重启")
+        except Exception:
+            pass
+
+    def _quit_from_tray(self) -> None:
+        self._quit_app()
+
+    def _minimize_to_tray(self) -> None:
+        self._in_tray = True
+        try:
+            self.root.withdraw()
+        except Exception:
+            pass
+        if not self._ensure_tray():
+            # Tray unavailable — keep window visible instead of vanishing.
+            self._in_tray = False
+            try:
+                self.root.deiconify()
+            except Exception:
+                pass
+            messagebox.showinfo(
+                "无法最小化",
+                "系统托盘不可用，窗口将继续显示。",
+                parent=self.root,
+            )
+            return
+        try:
+            self.tray.notify("在干什么", "已最小化到系统托盘，监控继续在后台运行")
+        except Exception:
+            pass
+
+    def _quit_app(self) -> None:
+        if self._quitting:
+            return
+        self._quitting = True
+        try:
+            self.service.stop()
+        except Exception:
+            pass
+        try:
+            if self.tray is not None:
+                self.tray.stop()
+        except Exception:
+            pass
+        self.tray = None
+        try:
+            self.root.destroy()
+        except Exception:
+            pass
+
+    def _on_close(self) -> None:
+        """Close button: ask tray keep-alive vs full quit."""
+        if self._quitting:
+            return
+        choice = ask_close_action(self.root, self.theme)
+        if choice == KEEP_TRAY:
+            self._minimize_to_tray()
+        elif choice == QUIT:
+            self._quit_app()
+        else:
+            # CANCEL — stay open
+            return
 
 
 def launch(config_path=None) -> int:
