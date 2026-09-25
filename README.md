@@ -5,7 +5,7 @@
 **网页只能查看，不能修改任何涉及隐私的配置。**
 
 ```text
-Windows Agent ──上报──► Backend (FastAPI) ◄──只读── Web Viewer（可独立部署）
+Windows Agent（含本地 GUI 控制台）──上报──► Backend (FastAPI) ◄──只读── Web Viewer（可独立部署）
 Android（仅可行性报告，见 docs/android-feasibility.md）
 ```
 
@@ -14,6 +14,7 @@ Android（仅可行性报告，见 docs/android-feasibility.md）
 | 能力 | 说明 |
 |------|------|
 | 前台应用监控 | 进程名 + 友好显示名；窗口标题**默认关闭** |
+| 本地控制台 GUI | Apple 风界面：配置、启停服务、实时状态、开机自启 |
 | 多设备列表 | 网页展示多台设备的在线状态与当前应用 |
 | 在线/离线 | 超过 `offline_after_seconds` 未上报视为离线 |
 | 最近切换 | 每设备保留最近历史（可配置上限） |
@@ -21,11 +22,13 @@ Android（仅可行性报告，见 docs/android-feasibility.md）
 | 进程黑名单 | 本地不上报指定进程，显示为 Redacted |
 | 可选只读 Token | 后端 `viewer_token` 非空时，网页需带 Token |
 | 配置持久化 | 启动检测配置，缺失则以默认设置创建并写回 |
+| 开机自动启动 | 写入 HKCU Run，登录后打开本地控制台 |
 
 ## 目录结构
 
 ```text
-agent/          Windows 监控客户端（纯标准库）
+agent/          Windows 监控客户端 + 本地控制台 GUI（纯标准库）
+  gui/          Apple 风控制面板（配置 / 启停 / 状态 / 自启）
 server/         FastAPI 后端 + SQLite
 web/            只读查看页（静态，可独立部署）
 docs/           安卓端可行性报告等
@@ -57,6 +60,27 @@ python -m server.app.main
 首次运行会创建/读取 `server/config.json`（缺失则写入默认值）。
 
 ### 2. 启动 Windows Agent
+
+**推荐：本地控制台 GUI（配置 / 启停 / 实时状态 / 开机自启）**
+
+```bash
+python -m agent.gui
+```
+
+界面说明（Apple 风）：
+
+| 区域 | 作用 |
+|------|------|
+| 顶部状态胶囊 | 已停止 / 运行中 / 已暂停 / 设置已保存 |
+| 实时状态卡片 | 当前前台应用、进程名、成功/失败计数、最近错误 |
+| 设备与连接 | `device_id`、名称、API 地址、Token、采样间隔 |
+| 隐私 | 窗口标题开关、隐私暂停、进程黑名单 |
+| 底部按钮 | **启动服务** / **停止** / **保存设置** |
+| 开机自动启动 | 写入 `HKCU\...\Run`，登录后自动打开控制台 |
+
+设置写回 `agent/config.json`；网页端仍为**只读**，无法修改上述隐私项。
+
+也可用命令行 Agent（无界面）：
 
 ```bash
 python -m agent.main
@@ -154,7 +178,7 @@ Viewer **没有**任何修改配置或控制设备的接口。
 
 1. **窗口标题默认不上报**；即使开启，Viewer API 仍默认剥离标题。  
 2. **黑名单**与**隐私暂停**在 Agent 本地完成，后端无法还原被脱敏内容。  
-3. 网页为**只读**，不能改 token、黑名单、标题开关等。  
+3. 网页为**只读**，不能改 token、黑名单、标题开关等；**本地 GUI 控制台**仅供设备所有者使用。  
 4. 配置入库便于你管理设置；生产环境请更换 `device_token` / `viewer_token`，避免公开仓库泄露。  
 5. 建议生产部署：反向代理 + HTTPS，限制 `cors_origins`，`viewer_token` 使用长随机串。
 
@@ -173,8 +197,8 @@ Viewer **没有**任何修改配置或控制设备的接口。
 python -m pytest
 ```
 
-覆盖：配置默认创建与校验、隐私字段（标题/黑名单/暂停）、存储历史、API 鉴权与只读约束。  
-Win32 真实调用不在单元测试中启动，仅测纯逻辑与注入缝。
+覆盖：配置默认创建与校验、隐私字段（标题/黑名单/暂停）、存储历史、API 鉴权与只读约束、GUI 表单映射与服务启停、开机自启（mock 注册表）。  
+Win32 真实调用与 GUI 主循环不在单元测试中启动，仅测纯逻辑与注入缝。
 
 ## 安卓端
 
@@ -187,9 +211,11 @@ Win32 真实调用不在单元测试中启动，仅测纯逻辑与注入缝。
 |------|------|
 | 网页一直「连接失败」 | 检查 `apiBaseUrl`、后端是否启动、CORS |
 | 401 | 核对 `device_token` ↔ `agent_tokens`，或 `viewerToken` |
-| 网页无设备 | Agent 是否在跑、`device_id` 是否注册到 `agent_tokens` |
+| 网页无设备 | Agent/GUI 服务是否在跑、`device_id` 是否注册到 `agent_tokens` |
 | 标题不显示 | `report_window_title=false`（默认）或后端剥离 |
-| 想临时不分享 | Agent 配置 `privacy_pause: true` 后重启 Agent |
+| 想临时不分享 | GUI 打开「隐私暂停」，或配置 `privacy_pause: true` |
+| 开机启动未生效 | 确认注册表 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 中 `WhatTheManDoingAgent`；或重新打开 GUI 中的开关 |
+| GUI 字体/配色异常 | 跟随系统浅色/深色（`AppsUseLightTheme`）；高对比度下组件会自动偏实心 |
 
 ## 许可
 
