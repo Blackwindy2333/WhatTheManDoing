@@ -20,16 +20,21 @@ from agent.gui.dialogs import KEEP_TRAY, QUIT, ask_close_action
 from agent.gui.dpi import apply_tk_scaling, configure_default_fonts, setup_dpi_awareness
 from agent.gui.theme import FONT_BODY, FONT_HINT, FONT_TITLE, px, set_ui_scale, system_theme
 from agent.service import AgentService
+from server.app.config import DEFAULT_CONFIG_PATH as SERVER_CONFIG_PATH
+from server.app.config import ensure_config as ensure_server_config
+from server.app.config import save_config as save_server_config
 
 
 class ControlPanel:
     """Local-only privacy control plane. Not exposed on the read-only web viewer."""
 
-    def __init__(self, root: tk.Tk, config_path=None) -> None:
+    def __init__(self, root: tk.Tk, config_path=None, server_config_path=None) -> None:
         self.root = root
         self.config_path = config_path or DEFAULT_CONFIG_PATH
+        self.server_config_path = server_config_path or SERVER_CONFIG_PATH
         self.theme = system_theme()
         self.config = ensure_config(self.config_path)
+        self.server_config = ensure_server_config(self.server_config_path)
         self.service = AgentService(self.config)
 
         scale = apply_tk_scaling(root)
@@ -129,7 +134,9 @@ class ControlPanel:
         self.f_token = widgets.LabeledEntry(conn, t, "设备 Token", show="•")
         self.f_token.pack(fill="x", pady=(0, px(10)))
         self.f_interval = widgets.LabeledEntry(conn, t, "采样间隔（毫秒）", width=12)
-        self.f_interval.pack(fill="x")
+        self.f_interval.pack(fill="x", pady=(0, px(10)))
+        self.f_rate_limit = widgets.LabeledEntry(conn, t, "API 限流（次/分钟，全局）", width=12)
+        self.f_rate_limit.pack(fill="x")
 
         # Privacy card
         widgets.SectionLabel(body, t, "隐私").pack(fill="x", pady=(0, px(6)))
@@ -228,6 +235,7 @@ class ControlPanel:
         self.f_api.set(c.api_base_url)
         self.f_token.set(c.device_token)
         self.f_interval.set(str(c.poll_interval_ms))
+        self.f_rate_limit.set(str(self.server_config.rate_limit_per_minute))
         self.t_title.set(c.report_window_title, fire=False)
         self.t_pause.set(c.privacy_pause, fire=False)
         self.f_blacklist.set(", ".join(c.app_name_blacklist))
@@ -250,19 +258,35 @@ class ControlPanel:
         }
         return validate_config_dict(data)
 
+    def _rate_limit_value(self) -> int:
+        raw = self.f_rate_limit.get().strip() or "120"
+        value = int(raw)
+        if value < 1 or value > 100000:
+            raise ValueError("API 限流需在 1–100000 之间")
+        return value
+
     def _save_form(self) -> bool:
         try:
             cfg = self._form_to_config()
+            rate_limit = self._rate_limit_value()
         except (ConfigError, ValueError) as exc:
             messagebox.showerror("无法保存", str(exc), parent=self.root)
             return False
         try:
             save_config(cfg, self.config_path)
+            self.server_config.rate_limit_per_minute = rate_limit
+            save_server_config(self.server_config, self.server_config_path)
         except OSError as exc:
             messagebox.showerror("无法保存", str(exc), parent=self.root)
             return False
         self.config = cfg
         self.service.update_config(cfg)
+        try:
+            # Keep a live API process in sync if one shares this limiter later.
+            if getattr(self, "api_limiter", None) is not None:
+                self.api_limiter.set_limit(rate_limit)
+        except Exception:
+            pass
         self.pill.set_state("设置已保存", self.theme.green)
         return True
 
