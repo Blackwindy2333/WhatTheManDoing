@@ -20,9 +20,12 @@ from agent.gui.dialogs import KEEP_TRAY, QUIT, ask_close_action
 from agent.gui.dpi import apply_tk_scaling, configure_default_fonts, setup_dpi_awareness
 from agent.gui.theme import FONT_BODY, FONT_HINT, FONT_TITLE, px, set_ui_scale, system_theme
 from agent.service import AgentService
+from logconfig import get_logger, setup_logging
 from server.app.config import DEFAULT_CONFIG_PATH as SERVER_CONFIG_PATH
 from server.app.config import ensure_config as ensure_server_config
 from server.app.config import save_config as save_server_config
+
+log = get_logger("gui")
 
 
 class ControlPanel:
@@ -36,6 +39,8 @@ class ControlPanel:
         self.config = ensure_config(self.config_path)
         self.server_config = ensure_server_config(self.server_config_path)
         self.service = AgentService(self.config)
+        self.log_file = setup_logging(app_name="gui")
+        log.info("control panel starting agent=%s server=%s", self.config_path, self.server_config_path)
 
         scale = apply_tk_scaling(root)
         set_ui_scale(scale)
@@ -215,7 +220,7 @@ class ControlPanel:
 
         self.footer = tk.Label(
             body,
-            text="只读网页不能修改这些设置 · 配置保存在 agent/config.json",
+            text=f"日志：{self.log_file} · 配置保存在 agent/config.json · 服务端限流写入 server/config.json",
             bg=t.bg,
             fg=t.secondary,
             font=FONT_HINT,
@@ -287,6 +292,14 @@ class ControlPanel:
                 self.api_limiter.set_limit(rate_limit)
         except Exception:
             pass
+        log.info(
+            "settings saved device_id=%s api=%s rate_limit=%s pause=%s title=%s",
+            cfg.device_id,
+            cfg.api_base_url,
+            rate_limit,
+            cfg.privacy_pause,
+            cfg.report_window_title,
+        )
         self.pill.set_state("设置已保存", self.theme.green)
         return True
 
@@ -296,11 +309,13 @@ class ControlPanel:
         if not self._save_form():
             return
         if self.service.start():
+            log.info("service start requested via GUI")
             self.btn_start.set_enabled(False)
             self.btn_stop.set_enabled(True)
             self.pill.set_state("运行中", self.theme.green)
 
     def _stop_service(self) -> None:
+        log.info("service stop requested via GUI")
         self.service.stop()
         self.btn_start.set_enabled(True)
         self.btn_stop.set_enabled(False)
@@ -457,6 +472,7 @@ class ControlPanel:
         if self._quitting:
             return
         self._quitting = True
+        log.info("quit application")
         try:
             self.service.stop()
         except Exception:
